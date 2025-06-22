@@ -67,6 +67,14 @@ def set_quiz_session(channel_id: int, session: QuizSession):
     active_quiz_sessions[channel_id] = session
     log.debug(f"Quiz session set for channel {channel_id}. Active quiz sessions: {len(active_quiz_sessions)}")
 
+def clear_all_quiz_sessions():
+    """
+    Removes all active quiz sessions from every channel.
+    """
+    active_quiz_sessions.clear()
+    log.debug("All active quiz sessions cleared.")
+
+
 def clear_quiz_session(channel_id: int):
     """
     Removes a quiz session from the active sessions dictionary.

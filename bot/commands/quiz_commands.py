@@ -103,28 +103,45 @@ class QuizCommands(commands.Cog):
             question_data = session.all_quiz_questions[current_question_index]
 
             options_map = None
-            correct_letter = None
-            
+            correct_letter_found = None
+            correct_option_text_found = None
+
             raw_options = question_data.get('options')
             if raw_options and isinstance(raw_options, list):
-                options = raw_options
-                shuffled_options_with_indices = [(opt, i) for i, opt in enumerate(options)]
-                random.shuffle(shuffled_options_with_indices)
+                options = list(raw_options) # No random.shuffle(options) here to prevent shuffling
                 options_map = {}
-                for i, (option_text, original_index) in enumerate(shuffled_options_with_indices):
-                    letter = chr(65 + i)
-                    options_map[letter.lower()] = option_text
-                    if question_data['representation_type'] == 'MCQ' and option_text == question_data['correct_answer']:
-                        correct_letter = letter
-            else:
-                if not raw_options:
-                    log.warning(f"Options are missing for question {question_data['question_id']}.")
-                elif not isinstance(raw_options, list):
-                    log.warning(f"Options for question {question_data['question_id']} are not a list (type: {type(raw_options)}).")
-                options_map = None
-                correct_letter = None
+                db_correct_val = str(question_data['correct_answer']).strip().lower()
 
-            session.set_current_question(question_data, options_map, correct_letter)
+                # First, try to match by letter (e.g., 'A', 'B') if db_correct_val is a single letter
+                if len(db_correct_val) == 1 and db_correct_val.isalpha():
+                    original_correct_index = ord(db_correct_val) - ord('a')
+                    if 0 <= original_correct_index < len(raw_options):
+                        correct_option_text_found = raw_options[original_correct_index].strip().lower()
+                        correct_letter_found = chr(65 + original_correct_index)
+
+                # If not matched by letter, or if db_correct_val is the text itself, try to match by text
+                if correct_option_text_found is None:
+                    for i, option_text in enumerate(options): # Use the ordered 'options'
+                        if option_text.strip().lower() == db_correct_val:
+                            correct_option_text_found = option_text.strip().lower()
+                            correct_letter_found = chr(65 + i) # Get the letter for this matching text
+                            break
+                
+                # If still not found, fallback to original correct_answer for text, and no letter
+                if correct_option_text_found is None:
+                    correct_option_text_found = db_correct_val # Fallback, might be a free response or unmatchable MCQ
+
+                for i, option_text in enumerate(options):
+                    letter = chr(65 + i)
+                    options_map[letter] = option_text
+                
+            else: # Not MCQ or no options
+                options_map = None
+                correct_letter_found = None
+                correct_option_text_found = str(question_data['correct_answer']).strip().lower()
+
+            session.set_current_question(question_data, options_map, correct_letter_found)
+            session.correct_answer_text = correct_option_text_found # Store the actual option text
             session.questions_asked_count += 1
 
             await self._send_question(channel, session)
@@ -290,29 +307,31 @@ class QuizCommands(commands.Cog):
         session.last_activity_time = time.time()
         quiz_sessions.set_quiz_session(channel_id, session)
 
+        # MCQ answer normalization and checking (robust to option shuffling, now removed)
         if current_q_data['representation_type'] == 'MCQ':
-            normalized_user_answer = user_answer.lower().strip().replace('.', '')
+            options_map = session.current_options_map or {}
+            correct_answer_text_from_session = (getattr(session, 'correct_answer_text', None) or '').strip().lower()
 
-            if session.current_options_map and normalized_user_answer in session.current_options_map:
-                if normalized_user_answer.upper() == session.correct_letter:
-                    is_correct = True
-                    ai_raw_feedback = "Correct! Your multiple-choice answer is spot on."
-                else:
-                    is_correct = False
-                    ai_raw_feedback = "Incorrect. That's not the right option."
+            normalized_user_answer = user_answer.strip().upper().replace('.', '')
+            user_answer_text = ""
+            
+            # If user entered a letter, map to option text
+            if normalized_user_answer in options_map:
+                user_answer_text = options_map[normalized_user_answer].strip().lower()
             else:
-                matched_letter = None
-                for letter, text in session.current_options_map.items():
-                    if user_answer.lower() == text.lower():
-                        matched_letter = letter.upper()
-                        break
-                
-                if matched_letter and matched_letter == session.correct_letter:
-                    is_correct = True
-                    ai_raw_feedback = "Correct! You got the right answer by typing the option text."
+                # Try to match answer text directly (case-insensitive)
+                user_answer_text = user_answer.strip().lower()
+
+            # Compare answer texts
+            if user_answer_text == correct_answer_text_from_session:
+                is_correct = True
+                ai_raw_feedback = "Correct! Your multiple-choice answer is spot on."
+            else:
+                is_correct = False
+                if session.correct_letter and session.correct_letter in options_map:
+                    ai_raw_feedback = f"Incorrect. The correct answer was: {session.correct_letter}. {options_map[session.correct_letter]}"
                 else:
-                    is_correct = False
-                    ai_raw_feedback = "Incorrect. Please choose one of the options (e.g., 'A' or the full option text)."
+                    ai_raw_feedback = f"Incorrect. The correct answer was: {correct_answer_text_from_session.upper()}"
 
         elif current_q_data['representation_type'] == 'FRQ':
             await ctx.send("Evaluating your free-response answer, please wait...")
@@ -368,9 +387,9 @@ class QuizCommands(commands.Cog):
         if not is_correct or current_q_data['representation_type'] == 'FRQ': 
             full_explanation_text = ""
             if current_q_data['representation_type'] == 'MCQ':
-                correct_answer_display = current_q_data['correct_answer']
-                if session.current_options_map and session.correct_letter:
-                    correct_answer_display = f"{session.correct_letter}. {session.current_options_map.get(session.correct_letter.lower(), current_q_data['correct_answer'])}"
+                correct_answer_display = correct_answer_text_from_session.upper()
+                if session.correct_letter and session.correct_letter in options_map:
+                    correct_answer_display = f"{session.correct_letter}. {options_map.get(session.correct_letter)}"
 
                 full_explanation_text = f"The correct answer was: ||{correct_answer_display}||\n\nExplanation: {current_q_data['explanation']}"
             else:

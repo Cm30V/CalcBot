@@ -87,7 +87,7 @@ async def generate_question_json(unit_number: int, skill_id: str, question_type:
 
     prompt = f"""
     You are an expert AP Calculus BC teacher. Your task is to generate a single, highly accurate and concise AP Calculus BC question in strict JSON format.
-    The question must precisely match the specified unit, skill, type, difficulty, and calculator status.
+    The question must precisely match the specified unit, skill, type, difficulty, and calculator status. 
 
     Unit: {unit_number} (Topic: {unit_data.get('name', 'N/A')})
     Skill ID: {skill_id} (Description: {skill_name})
@@ -103,7 +103,7 @@ async def generate_question_json(unit_number: int, skill_id: str, question_type:
     - The 'options' field should be explicitly `null`.
     - The 'correct_answer' for FRQ should be the numerical or analytical correct value/expression.
 
-    The 'explanation' must be a detailed, concise, and accurate step-by-step reasoning for the correct answer, sufficient for a student to understand. It must be at least 50 characters long.
+    The 'explanation' must be a detailed, VERY concise, and accurate step-by-step reasoning for the correct answer, sufficient for a student to understand. It must be at least 50 characters long.
     The 'question_id' must follow the format 'UNIT-SKILL-RANDOMSTRING', for example '1-1.1A-abcdef1234567890'.
     The 'skill_id' field in the JSON MUST be a string, exactly matching the requested skill_id: '{skill_id}'. It must NOT be an array or list of choices.
     The 'correct_answer' should be concise.
@@ -226,7 +226,7 @@ async def generate_question_json(unit_number: int, skill_id: str, question_type:
 async def grade_free_response_answer(question_text: str, correct_answer: str, user_answer: str, explanation: str) -> dict:
     """
     Grades a Free Response Question (FRQ) answer using the Groq API.
-    The AI's feedback will strictly start with "Correct!" or "Incorrect." to signify the assessment.
+    The AI's feedback will strictly start with "Correct!" or "Incorrect." to signify the assessment THE FEEDBACK SHOULD BE VERY CONCISE.
 
     Args:
         question_text (str): The full text of the question.
@@ -253,8 +253,8 @@ async def grade_free_response_answer(question_text: str, correct_answer: str, us
     User's Submitted Answer: {user_answer}
 
     Carefully evaluate the user's answer against the provided Official Correct Answer and Explanation/Rubric.
-    Your response MUST start with either "Correct!" or "Incorrect." followed by a space.
-    Then, provide a concise, constructive, and descriptive feedback message.
+    Your response MUST start with either "Correct!" or "Incorrect." followed by a space.  Do NOT include any internal thoughts, reasoning processes, or roleplay indicators like <think>. Be concise.
+    Then, provide a concise, constructive, and descriptive feedback message. DO NOT HALLUCINATE EITHER.
 
     - If the user's answer is substantially correct, begin with "Correct!" and then briefly confirm or highlight a key strength of their solution.
     - If the user's answer is incorrect or partially correct, begin with "Incorrect." and then clearly identify what was missed, misunderstood, or incorrect. Provide a hint or suggestion for improvement.
