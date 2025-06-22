@@ -100,9 +100,7 @@ class CustomHelpCommand(commands.DefaultHelpCommand):
         embed.set_footer(text=self.get_ending_note())
         await self.get_destination().send(embed=embed)
 
-
-# --- Bot Setup ---
-# Define Discord bot intents, crucial for specifying what events your bot needs to listen to.
+# Define Discord bot intents, crucial for specifying what events  bot needs to listen to.
 intents = discord.Intents.default()
 intents.message_content = True # Required to read message content from guilds
 intents.reactions = True       # Required to read reactions for features like quiz interactions
