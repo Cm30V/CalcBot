@@ -1,0 +1,20 @@
+# Ignore environment variables file
+/.env
+
+# Ignore Python specific files
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Ignore IDE specific files (e.g., VS Code)
+.vscode/
+.idea/
+
+# Ignore logs
+logs/
+*.log
